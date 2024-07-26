@@ -41,3 +41,7 @@ if __name__ == '__main__':
     # 持续监听消息
     while True:
         time.sleep(5)  # 使用 time 模块中的 sleep 函数
+
+创建一个主题用于接收从PubSub传过来的所有消息
+.\bin\windows\kafka-topics.bat --create --replication-factor 1 --partitions 1 --topic pubsub2dws_kafka --bootstrap-server 192.1.0.127:9092
+
