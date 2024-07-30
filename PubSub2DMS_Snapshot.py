@@ -4,6 +4,13 @@ import json
 import threading
 from datetime import timedelta
 
+# Pub/Sub 订阅参数
+project_id = "pubsub-connect-kafka"
+subscription_name = "pubsub2dws_subscription"
+
+# Kafka Broker 参数
+kafka_bootstrap_servers = '192.1.0.127:9092'
+kafka_topic = 'pubsub2dws_kafka'
 
 # 初始化 KafkaProducer
 producer = KafkaProducer(bootstrap_servers=kafka_bootstrap_servers, 
