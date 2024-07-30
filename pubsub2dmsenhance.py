@@ -22,3 +22,6 @@ expected message test 4
 消费情况
 
 2.演示消费数据同步，手动发送消息
+
+bin\zookeeper-server-stop.bat
+bin\kafka-server-stop.bat
