@@ -3,7 +3,9 @@ from kafka import KafkaProducer
 import json
 import threading
 from datetime import timedelta
-
+/*
+*在这个脚本中，subscription_names 是一个包含多个订阅名称的列表。migrate_history_to_kafka 和 consume_from_pubsub 函数现在接受 subscription_name 作为参数，并针对每个订阅名称启动一个线程进行历史数据迁移和实时数据消费。这样可以处理多个订阅。  
+*/
 # Pub/Sub 订阅参数
 project_id = "pubsub-connect-kafka"
 subscription_names = ["pubsub2dws_subscription1", "pubsub2dws_subscription2"]  # 修改为多个订阅名称
