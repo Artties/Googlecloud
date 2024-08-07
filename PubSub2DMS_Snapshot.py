@@ -5,22 +5,23 @@ import threading
 from datetime import timedelta
 
 # Pub/Sub 订阅参数
-project_id = "pubsub-connect-kafka"
-subscription_name = "pubsub2dws_subscription"
+project_id = 'pubsub-connect-kafka'
+subscription_name = 'hc_sub'
 
 # Kafka Broker 参数
-kafka_bootstrap_servers = '192.1.0.127:9092'
-kafka_topic = 'pubsub2dws_kafka'
+kafka_bootstrap_servers = '111.119.208.59:9094'
+kafka_topic = 'topic-690780377'
 
 # 初始化 KafkaProducer
-producer = KafkaProducer(bootstrap_servers=kafka_bootstrap_servers, 
-                         value_serializer=lambda v: json.dumps(v).encode('utf-8'))
+producer = KafkaProducer(
+    bootstrap_servers=kafka_bootstrap_servers,
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
 
 # 定义一个函数来列出快照并返回排序后的快照列表
 def list_snapshots(subscriber, project_id):
     snapshots = list(subscriber.list_snapshots(request={"project": f"projects/{project_id}"}))
     snapshot_list = []
-    # 计算 create_time = expire_time - 7天
     for snapshot in snapshots:
         if snapshot.expire_time:
             create_time = snapshot.expire_time - timedelta(days=7)
@@ -31,6 +32,7 @@ def list_snapshots(subscriber, project_id):
     snapshot_list.sort(key=lambda x: x['create_time'].timestamp(), reverse=True)
     return snapshot_list
 
+# 处理历史数据的函数
 def migrate_history_to_kafka():
     subscriber = pubsub_v1.SubscriberClient()
     subscription_path = subscriber.subscription_path(project_id, subscription_name)
@@ -54,7 +56,9 @@ def migrate_history_to_kafka():
         ack_ids = []
         for received_message in response.received_messages:
             try:
-                callback(received_message.message)
+                message_data = received_message.message.data.decode('utf-8')
+                print(f"Received message from snapshot: {message_data}")
+                send_to_kafka(message_data)
                 ack_ids.append(received_message.ack_id)
             except Exception as e:
                 print(f"Error processing message: {e}")
@@ -66,14 +70,32 @@ def migrate_history_to_kafka():
     else:
         print("No snapshots found.")
 
-def callback(message):
-    # 处理接收到的消息
-    message_data = message.data.decode('utf-8')
-    print(f"Received message: {message_data}")
+# 处理实时数据的函数
+def process_realtime_data(subscriber, subscription_path):
+    # 模拟实时数据处理，这里可以根据实际需求修改
+    response = subscriber.pull(
+        request={
+            "subscription": subscription_path,
+            "max_messages": 10,  # 指定拉取的最大消息数量
+        }
+    )
 
-    # 发送消息到 Kafka
-    send_to_kafka(message_data)
+    ack_ids = []
+    for received_message in response.received_messages:
+        try:
+            message_data = received_message.message.data.decode('utf-8')
+            print(f"Received message in real-time: {message_data}")
+            send_to_kafka(message_data)
+            ack_ids.append(received_message.ack_id)
+        except Exception as e:
+            print(f"Error processing real-time message: {e}")
 
+    # 确认所有消息
+    if ack_ids:
+        subscriber.acknowledge(request={"subscription": subscription_path, "ack_ids": ack_ids})
+    print(f"Processed real-time messages on {subscription_path}...")
+
+# 发送消息到 Kafka 的函数
 def send_to_kafka(message):
     try:
         # 发送消息到 Kafka
@@ -83,26 +105,22 @@ def send_to_kafka(message):
     except Exception as e:
         print(f"Failed to send message to Kafka: {e}")
 
-def consume_from_pubsub():
-    subscriber = pubsub_v1.SubscriberClient()
-    subscription_path = subscriber.subscription_path(project_id, subscription_name)
-    streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
-    print(f"Listening for messages on {subscription_path}...\n")
-
-    # 调用 `result()` 以保持主线程处于活动状态
-    try:
-        streaming_pull_future.result()
-    except:  # 捕获所有异常以防止线程中断
-        streaming_pull_future.cancel()
-        streaming_pull_future.result()
-
 if __name__ == '__main__':
     # 创建一个线程用于历史数据迁移
     history_thread = threading.Thread(target=migrate_history_to_kafka)
     history_thread.start()
 
-    # 主线程用于消费实时数据
-    consume_from_pubsub()
-    
+    # 同时处理实时数据
+    subscriber = pubsub_v1.SubscriberClient()
+    subscription_path = subscriber.subscription_path(project_id, subscription_name)
+    realtime_thread = threading.Thread(target=process_realtime_data, args=(subscriber, subscription_path))
+    realtime_thread.start()
+
     # 等待历史数据迁移线程完成
     history_thread.join()
+    print("Historical data migration completed.")
+
+    # 等待实时数据处理线程完成
+    realtime_thread.join()
+    print("Real-time data processing completed.")
+
